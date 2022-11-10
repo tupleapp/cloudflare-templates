@@ -9,20 +9,21 @@ export default class WHIPClient {
 	private peerConnection: RTCPeerConnection;
 	private localStream?: MediaStream;
 
-	constructor(private endpoint: string, private videoElement: HTMLVideoElement) {
+	constructor(private endpoint: string, private videoElement: HTMLVideoElement, private worker: Worker | undefined = undefined) {
 		/**
 		 * Create a new WebRTC connection, using public STUN servers with ICE,
 		 * allowing the client to disover its own IP address.
 		 * https://developer.mozilla.org/en-US/docs/Web/API/WebRTC_API/Protocols#ice
 		 */
 		this.peerConnection = new RTCPeerConnection({
+			encodedInsertableStreams: !!this.worker,
 			iceServers: [
 				{
 					urls: 'stun:stun.cloudflare.com:3478',
 				},
 			],
 			bundlePolicy: 'max-bundle',
-		});
+		} as any);
 
 		/**
 		 * Listen for negotiationneeded events, and use WHIP as the signaling protocol to establish a connection
@@ -61,6 +62,19 @@ export default class WHIPClient {
 					/** WHIP is only for sending streaming media */
 					direction: 'sendonly',
 				});
+
+				if (this.worker) {
+					console.log("creating encoded frames");
+
+					const { readable, writable }  = (transceiver.sender as any).createEncodedStreams();
+
+					this.worker.postMessage({
+						operation: 'encode',
+						readable,
+						writable,
+					}, [readable, writable]);
+				}
+
 				if (track.kind == 'video' && transceiver.sender.track) {
 					transceiver.sender.track.applyConstraints({
 						width: 1280,

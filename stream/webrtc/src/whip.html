@@ -14,13 +14,33 @@
 		<h5>(local mirror)</h5>
 		<video id="input-video" autoplay muted></video>
 
+		<!-- Test E2E encryption by setting URL fragments (e.g., localhost:8788#some-key)  -->
+		<script>
+			(() => {
+				if (!RTCRtpSender.prototype.createEncodedStreams) {
+					return console.error("encoded streams are not supported; cannot use e2ee");
+				}
+
+				const worker = new Worker('./worker.js', {name: 'E2EE worker'});
+				const key = location.hash.substring(1);
+
+				if (key) {
+					worker.postMessage({operation: 'setCryptoKey', currentCryptoKey: key, useCryptoOffset: true });
+				} else {
+					console.warn('insertable streams are being used without a key');
+				}
+
+				window.e2ee = worker;
+			})();
+		</script>
+
 		<script type="module">
 			import WHIPClient from './WHIPClient.js';
 
 			const url = '<WEBRTC_URL_FROM_YOUR_LIVE_INPUT>';
 			const videoElement = document.getElementById('input-video');
 
-			self.client = new WHIPClient(url, videoElement);
+			self.client = new WHIPClient(url, videoElement, window.e2ee);
 		</script>
 	</body>
 </html>

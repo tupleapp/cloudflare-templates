@@ -14,13 +14,33 @@
 		<h5>(remote content)</h5>
 		<video id="remote-video" controls autoplay muted></video>
 
+		<!-- Test E2E encryption / insertable streams by setting URL fragments (e.g., localhost:8788#some-key)  -->
+		<script>
+			(() => {
+				if (!RTCRtpSender.prototype.createEncodedStreams) {
+					return console.error("encoded streams are not supported; cannot use e2ee");
+				}
+
+				const worker = new Worker('./worker.js', {name: 'E2EE worker'});
+				const key = location.hash.substring(1);
+
+				if (key) {
+					worker.postMessage({operation: 'setCryptoKey', currentCryptoKey: key, useCryptoOffset: true });
+				} else {
+					console.warn('insertable streams are being used without a key');
+				}
+
+				window.e2ee = worker;
+			})();
+		</script>
+
 		<script type="module">
 			import WHEPClient from './WHEPClient.js';
 
 			const url = '<WEBRTC_PLAYBACK_URL_FROM_YOUR_LIVE_INPUT>';
 			const videoElement = document.getElementById('remote-video');
 
-			self.client = new WHEPClient(url, videoElement);
+			self.client = new WHEPClient(url, videoElement, window.e2ee);
 		</script>
 	</body>
 </html>

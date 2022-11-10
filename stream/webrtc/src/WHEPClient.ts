@@ -9,7 +9,7 @@ export default class WHEPClient {
 	private peerConnection: RTCPeerConnection;
 	private stream: MediaStream;
 
-	constructor(private endpoint: string, private videoElement: HTMLVideoElement) {
+	constructor(private endpoint: string, private videoElement: HTMLVideoElement, private worker: Worker|undefined = undefined) {
 		this.stream = new MediaStream();
 
 		/**
@@ -18,18 +18,20 @@ export default class WHEPClient {
 		 * https://developer.mozilla.org/en-US/docs/Web/API/WebRTC_API/Protocols#ice
 		 */
 		this.peerConnection = new RTCPeerConnection({
+			encodedInsertableStreams: !!this.worker,
 			iceServers: [
 				{
 					urls: 'stun:stun.cloudflare.com:3478',
 				},
 			],
 			bundlePolicy: 'max-bundle',
-		});
+		} as any);
 
 		/** https://developer.mozilla.org/en-US/docs/Web/API/RTCPeerConnection/addTransceiver */
 		this.peerConnection.addTransceiver('video', {
 			direction: 'recvonly',
 		});
+
 		this.peerConnection.addTransceiver('audio', {
 			direction: 'recvonly',
 		});
@@ -45,6 +47,19 @@ export default class WHEPClient {
 			const currentTracks = this.stream.getTracks();
 			const streamAlreadyHasVideoTrack = currentTracks.some(track => track.kind === 'video');
 			const streamAlreadyHasAudioTrack = currentTracks.some(track => track.kind === 'audio');
+
+			if (this.worker) {
+				console.log("setup receiver transform");
+
+				const {readable, writable} = (event.receiver as any).createEncodedStreams();
+
+				this.worker?.postMessage({
+					operation: 'decode',
+					readable,
+					writable,
+				}, [readable, writable]);
+			}
+
 			switch (track.kind) {
 				case 'video':
 					if (streamAlreadyHasVideoTrack) {
